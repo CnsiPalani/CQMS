@@ -113,8 +113,7 @@ MIT License
 
 ## Authors
 
-- Your Name
-- Contributors
+- Palanivel Kuppan
 
 ---
 
