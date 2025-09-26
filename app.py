@@ -1,11 +1,9 @@
 import streamlit as st
-
+st.set_page_config(page_title="My Web App", layout="wide")
 from query import (
     show_all_query,
 )
 from dashboard import dashboard 
-
-
 def main():
     """
     Main entry point for the Streamlit Client Query Management System (CQMS) app.
@@ -37,26 +35,26 @@ def main():
         st.session_state.selected_query_id = None
     if "user_id" not in st.session_state:
         st.session_state.user_id = None
-
     # Only show page config/sidebar if logged in
     if st.session_state.get("logged_in", False):
-        st.set_page_config(page_title="My Web App", layout="wide")
-        st.sidebar.title("🌐 CQMS" )
+        st.sidebar.markdown("<h3>🌐 CQMS</h3>", unsafe_allow_html=True)  # Smaller sidebar title
         st.sidebar.write("Logged in as:", st.session_state.username)
-
-        menu_options = ["Dashboard", "Querys", "Logout"]
+        if st.session_state.role == "Support":
+            menu_options = ["Dashboard", "Querys", "Logout"]
+        else:
+            menu_options = ["Querys", "Logout"]
+        # menu_options = ["Dashboard", "Querys", "Logout"]
         selected_option = st.sidebar.radio("Navigate", menu_options)
-        
         # Page routing logic
         if selected_option == "Dashboard":
-            st.subheader("📊 Client Query Management Dashboard")
+            st.markdown("<h4 style='font-size:1em;'>📊 Client Query Management Dashboard</h4>", unsafe_allow_html=True)  # Smaller header
             dashboard()
         elif selected_option == "Querys":
             if st.session_state.role == "Client":
-                st.subheader("📋 My Querys")
+                st.markdown("<h4 style='font-size:1em;'>📋 My Querys</h4>", unsafe_allow_html=True)
                 show_all_query()
             else:
-                st.subheader("📋 All Querys")
+                st.markdown("<h4 style='font-size:1em;'>📋 All Querys</h4>", unsafe_allow_html=True)
                 show_all_query()
         elif selected_option == "Logout":
             st.session_state.logged_in = False
@@ -71,7 +69,5 @@ def main():
     else:
         # Show login page or message
         st.title("Please log in to continue.")
-
-
 if __name__ == "__main__":
     main()

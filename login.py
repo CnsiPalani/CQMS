@@ -27,8 +27,8 @@ def show_login_page():
     Returns:
         None
     """
-    st.title("🔒 Login")
     with st.form("login_form"):
+        st.markdown("<h5 style='font-size:1.1em;'>🔒 Login</h5>", unsafe_allow_html=True)
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("🔑 Login")

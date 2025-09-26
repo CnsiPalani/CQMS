@@ -34,7 +34,45 @@ def show_query_list_page():
         st.error(f"Error fetching query list: {e}")
         return []
 
+from st_aggrid import AgGrid, GridOptionsBuilder
+
+def show_selectable_dataframe(df):
+    search_query = st.text_input("🔍 Search all columns")
+    if search_query:
+        mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+        df = df[mask]
+
+    gb = GridOptionsBuilder.from_dataframe(df)
+    gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
+    gb.configure_selection('single')
+    gb.configure_column("Query ID", hide=True)
+    grid_options = gb.build()
+    grid_response = AgGrid(df, gridOptions=grid_options, update_mode='SELECTION_CHANGED',fit_columns_on_grid_load=True, height=355,  width='100%')
+    selected = grid_response.get('selected_rows', [])
+    if isinstance(selected, pd.DataFrame):
+        if not selected.empty:
+            query_id = selected.iloc[0]["Query ID"]
+            if query_id is not None:
+                st.session_state.selected_query_id = int(query_id)
+                st.rerun()  # This will reload the page and show the details page
+        else:
+            st.info("No row selected.")
+        
 def show_all_query():
+    if st.session_state.get("addClient", False):
+        show_add_client_page()
+        return
+    if st.session_state.get("selected_query_id"):
+        show_query_details_page(st.session_state.selected_query_id)
+        return
+    rows = show_query_list_page()
+    df = pd.DataFrame(rows, columns=["Query ID", "Email ID", "Mobile Number", "Query Heading", "Query Description", "Status"])
+    if not df.empty:
+        show_selectable_dataframe(df)
+    else:
+        st.info("No queries found.")
+
+def show_all_query_text():
     """
     Displays the main query management interface for the client query management system.
     The function handles the following:
@@ -174,6 +212,9 @@ def show_query_details_page(query_id):
                 query_description = st.text_area("Query Description", value=result[4], disabled=True)
                 if result[6]:
                     st.image(result[6], caption="Existing Screenshot", use_container_width=True, clamp=True, channels="RGB")
+                else:
+                    st.image("https://via.placeholder.com/400x300.png?text=No+Screenshot", caption="No Screenshot Available", use_container_width=True) 
+                    
                 status = st.selectbox("Status", ["Open", "Closed"], index=0 if result[5] == "Open" else 1)
                 submitted = st.form_submit_button("Update Client Query")
                 if submitted:
