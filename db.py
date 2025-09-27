@@ -15,7 +15,7 @@ def get_connection():
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="password",
+            password="Password@99",
             database="cqms"
         )
         return conn

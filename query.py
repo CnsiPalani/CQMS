@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import re
 from db import get_connection
+from st_aggrid import AgGrid, GridOptionsBuilder
 
 def show_query_list_page():
     """
@@ -24,9 +25,9 @@ def show_query_list_page():
 
         if st.session_state.role == "Client":
             print("Fetching queries for user_id:", st.session_state.role, st.session_state.user_id)
-            cursor.execute("SELECT query_id,emailid, mobilenumber, query_heading, query_description, status FROM client_query_details WHERE user_id = %s", (st.session_state.user_id,))
+            cursor.execute("SELECT query_id,emailid, mobilenumber, query_heading, query_description, status FROM client_query_details WHERE user_id = %s order by query_id desc", (st.session_state.user_id,))
         else:
-            cursor.execute("SELECT query_id, emailid, mobilenumber, query_heading, query_description, status FROM client_query_details")
+            cursor.execute("SELECT query_id, emailid, mobilenumber, query_heading, query_description, status FROM client_query_details order by query_id desc")
         rows = cursor.fetchall()
         conn.close()
         return rows
@@ -34,9 +35,24 @@ def show_query_list_page():
         st.error(f"Error fetching query list: {e}")
         return []
 
-from st_aggrid import AgGrid, GridOptionsBuilder
+
 
 def show_selectable_dataframe(df):
+    """
+    Displays a searchable and selectable dataframe using Streamlit and AgGrid.
+    Args:
+        df (pd.DataFrame): The dataframe to display.
+    Features:
+        - Provides a text input for searching across all columns.
+        - Filters the dataframe based on the search query.
+        - Displays the dataframe with pagination (10 rows per page).
+        - Allows single row selection.
+        - Hides the "Query ID" column from the grid.
+        - Stores the selected "Query ID" in Streamlit session state and triggers a rerun to update the UI.
+        - Shows an info message if no row is selected.
+    Returns:
+        None
+    """
     search_query = st.text_input("🔍 Search all columns")
     if search_query:
         mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
@@ -44,7 +60,9 @@ def show_selectable_dataframe(df):
 
     gb = GridOptionsBuilder.from_dataframe(df)
     gb.configure_pagination(paginationAutoPageSize=False, paginationPageSize=10)
-    gb.configure_selection('single')
+    if st.session_state.role == "Support":
+        gb.configure_selection('single')
+
     gb.configure_column("Query ID", hide=True)
     grid_options = gb.build()
     grid_response = AgGrid(df, gridOptions=grid_options, update_mode='SELECTION_CHANGED',fit_columns_on_grid_load=True, height=355,  width='100%')
@@ -59,6 +77,15 @@ def show_selectable_dataframe(df):
             st.info("No row selected.")
         
 def show_all_query():
+    """
+    Displays the main query management interface for clients.
+    - If the 'addClient' flag is set in the session state, shows the add client query page.
+    - If a query is selected, displays the details for the selected query.
+    - Otherwise, shows a list of all queries in a selectable dataframe.
+    - If no queries are found, displays an informational message.
+    - For users with the 'Client' role, provides a button to add a new client query.
+    Relies on Streamlit session state for navigation and user role management.
+    """
     if st.session_state.get("addClient", False):
         show_add_client_page()
         return
@@ -72,110 +99,13 @@ def show_all_query():
     else:
         st.info("No queries found.")
 
-def show_all_query_text():
-    """
-    Displays the main query management interface for the client query management system.
-    The function handles the following:
-    - If the 'addClient' flag is set in session state, shows the add client query page.
-    - If a query is selected, shows the details page for the selected query.
-    - Otherwise, displays a paginated, filterable, and searchable list of queries.
-    - Allows filtering queries by status ('All', 'Open', 'Closed').
-    - Supports searching queries by heading or description.
-    - Provides pagination controls for navigating through the query list.
-    - Renders the query list in a custom-styled table with action buttons.
-    - Restricts certain actions based on the user's role (e.g., disables edit for 'Client' role).
-    - Allows clients to add new queries via a button.
-    - Handles and displays errors gracefully.
-    Exceptions:
-        Displays an error message in the Streamlit interface if any exception occurs during rendering.
-    """
-    try:
-        if st.session_state.get("addClient", False):
-            show_add_client_page()
-            return
-        if st.session_state.get("selected_query_id"):
-            show_query_details_page(st.session_state.selected_query_id)
-            return
-        rows = show_query_list_page()
-        if rows:
-            df = pd.DataFrame(rows, columns=["Query ID", "Email ID", "Mobile Number", "Query Heading", "Query Description", "Status"])
-            filter_status = st.selectbox("Filter by Status", ["All", "Open", "Closed"])
-            if filter_status != "All":
-                df = df[df["Status"] == filter_status]
-            search_query = st.text_input("Search by Query Heading or Description")
-            if search_query:
-                df = df[df["Query Heading"].str.contains(search_query, case=False) | df["Query Description"].str.contains(search_query, case=False)]
-            items_per_page = st.selectbox("Items per page", [5, 10, 20, 50], index=1)
-            total_pages = len(df) // items_per_page + (len(df) % items_per_page > 0)
-            if total_pages == 0:
-                st.info("No queries found for the selected filters/search.")
-                return
-            page_number = st.number_input("Page number", min_value=1, max_value=total_pages, value=1)
-            start_idx = (page_number - 1) * items_per_page
-            end_idx = start_idx + items_per_page
-            paginated_df = df.iloc[start_idx:end_idx]
-            st.write(f"Showing page {page_number} of {total_pages}")
 
-            st.markdown("""
-            <style>
-            .table-container {
-                border: 1px solid #ccc;
-                border-radius: 5px;
-                padding: 5px;
-            }
-            .table-header, .table-row {
-                display: flex;
-                border-bottom: 1px solid #ddd;
-                padding: 5px 0;
-            }
-            .table-header div, .table-row div {
-                flex: 1;
-                padding: 0 10px;
-                font-size: 14px;
-            }
-            .table-header {
-                font-weight: bold;
-                background-color: #f0f0f0;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-
-            st.markdown("""
-            <div class="table-container">
-                <div class="table-header">
-                    <div>Action</div>
-                    <div>Email ID</div>
-                    <div>Mobile Number</div>
-                    <div>Query Heading</div>
-                    <div>Query Description</div>
-                    <div>Status</div>
-                </div>
-            """, unsafe_allow_html=True)
-
-            for _, row in paginated_df.iterrows():
-                cols = st.columns([1,2,2,2,3,1])
-                with cols[0]:
-                    if st.button("✏️", key=f"view_{row['Query ID']}",disabled=True if st.session_state.role == "Client" else False):
-                        st.session_state.selected_query_id = row["Query ID"]
-                        st.write(f"Selected Query ID: {row['Query ID']}")  # Debug print
-                        st.rerun()
-                cols[1].write(row["Email ID"])
-                cols[2].write(row["Mobile Number"])
-                cols[3].write(row["Query Heading"])
-                cols[4].write(row["Query Description"])
-                cols[5].write(row["Status"])
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        else:
-            st.info("No queries found.")
-
-        if st.session_state.role == "Client":
+    if st.session_state.role == "Client":
             if st.button("➕ Add Client Query"):
                 st.session_state.addClient = True
                 st.rerun()
-    except Exception as e:
-        st.error(f"Error displaying queries: {e}")
+
+
 
 def show_query_details_page(query_id):
     """
